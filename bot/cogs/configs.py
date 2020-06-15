@@ -18,6 +18,8 @@ class Configs(commands.Cog):
 
 		msg = ctx.message.content.split()
 
+		conn, cur = await self.bot.db.create_connection(ctx.guild.id)
+
 		for channel in ctx.message.channel_mentions:
 			if not isinstance(channel, discord.channel.TextChannel):
 				result.append(f'- {channel.mention} isn\'t a text channel.')
@@ -25,11 +27,11 @@ class Configs(commands.Cog):
 
 			bot_permissions = channel.permissions_for(ctx.guild.get_member(self.bot.user.id))
 			if not bot_permissions.read_messages:
-					result.append(f'- I do not have permission to read messages on {channel.mention}.')
-					continue
+				result.append(f'- I do not have permission to read messages on {channel.mention}.')
+				continue
 			elif not bot_permissions.send_messages:
-					result.append(f'- I do not have permission to send messages on {channel.mention}.')
-					continue
+				result.append(f'- I do not have permission to send messages on {channel.mention}.')
+				continue
 
 			try:
 				probability = int(msg[msg.index(channel.mention)+1])
@@ -38,7 +40,7 @@ class Configs(commands.Cog):
 			except:
 				probability = 10
 
-			r = await self.bot.db.add_talk_channel(ctx.guild.id, channel.id, probability)
+			r = await self.bot.db.add_talk_channel(conn, cur, channel.id, probability)
 			if r == 1:
 				result.append(f'- {channel.mention} was added to the talking channels list with a {probability}% probability.')
 			elif r == 2:
@@ -47,6 +49,8 @@ class Configs(commands.Cog):
 			else: #r == 3
 				result.append(f'- {channel.mention} was not added, you can only add up to 5 talking channels.')
 
+		await self.bot.db.close_connection(conn, cur)
+
 		await ctx.send(embed=discord.Embed(title='Action completed with the following results:', description='\n'.join(result), color=0x00FF00))
 
 	@settalkchat.command(name='remove')
@@ -54,7 +58,10 @@ class Configs(commands.Cog):
 	@commands.has_permissions(manage_channels=True)
 	async def _settalkchat_remove(self, ctx, all=None):
 		if all == 'all':
-			await self.bot.db.remove_all_talk_channels(ctx.guild.id)
+			conn, cur = await self.bot.db.create_connection(ctx.guild.id)
+			await self.bot.db.remove_all_talk_channels(conn, cur)
+			await self.bot.db.close_connection(conn, cur)
+
 			await ctx.send('All channels have been removed from the talking channels list!')
 			return
 
@@ -64,12 +71,16 @@ class Configs(commands.Cog):
 
 		result = []
 
+		conn, cur = await self.bot.db.create_connection(ctx.guild.id)
+
 		for channel in ctx.message.channel_mentions:
-			r = await self.bot.db.remove_talk_channel(ctx.guild.id, channel.id)
+			r = await self.bot.db.remove_talk_channel(conn, cur, channel.id)
 			if r == 1:
 				result.append(f'- {channel.mention} was removed from the talking channels list.')
 			else: #r == 2
 				result.append(f'- {channel.mention} is not in the talk channels list.')
+
+		await self.bot.db.close_connection(conn, cur)
 
 		await ctx.send(embed=discord.Embed(title='Action completed with the following results:', description='\n'.join(result), color=0x00FF00))
 
@@ -83,6 +94,8 @@ class Configs(commands.Cog):
 
 		result = []
 
+		conn, cur = await self.bot.db.create_connection(ctx.guild.id)
+
 		for channel in ctx.message.channel_mentions:
 			if not isinstance(channel, discord.channel.TextChannel):
 				result.append(f'- {channel.mention} isn\'t a text channel.')
@@ -90,16 +103,18 @@ class Configs(commands.Cog):
 
 			bot_permissions = channel.permissions_for(ctx.guild.get_member(self.bot.user.id))
 			if not bot_permissions.read_messages:
-					result.append(f'- I do not have permission to read messages on {channel.mention}.')
-					continue
+				result.append(f'- I do not have permission to read messages on {channel.mention}.')
+				continue
 
-			r = await self.bot.db.add_learn_channel(ctx.guild.id, channel.id)
+			r = await self.bot.db.add_learn_channel(conn, cur, channel.id)
 			if r == 1:
 				result.append(f'- {channel.mention} was added to the learning channels list.')
 			elif r == 2:
 				result.append(f'- {channel.mention} was already in the learning channels list.')
 			else: #r == 3
 				result.append(f'- {channel.mention} was not added, you can only add up to 10 talking channels.')
+
+		await self.bot.db.close_connection(conn, cur)
 
 		await ctx.send(embed=discord.Embed(title='Action completed with the following results:', description='\n'.join(result), color=0x00FF00))
 
@@ -108,7 +123,10 @@ class Configs(commands.Cog):
 	@commands.has_permissions(manage_channels=True)
 	async def _setlearnchat_remove(self, ctx, all=None):
 		if all == 'all':
-			await self.bot.db.remove_all_learn_channels(ctx.guild.id)
+			conn, cur = await self.bot.db.create_connection(ctx.guild.id)
+			await self.bot.db.remove_all_learn_channels(conn, cur)
+			await self.bot.db.close_connection(conn, cur)
+
 			await ctx.send('All channels have been removed from the learning channels list!')
 			return
 
@@ -118,12 +136,16 @@ class Configs(commands.Cog):
 
 		result = []
 
+		conn, cur = await self.bot.db.create_connection(ctx.guild.id)
+
 		for channel in ctx.message.channel_mentions:
-			r = await self.bot.db.remove_learn_channel(ctx.guild.id, channel.id)
+			r = await self.bot.db.remove_learn_channel(conn, cur, channel.id)
 			if r == 1:
 				result.append(f'- {channel.mention} was removed from the learning channels list.')
 			else: #r == 2
 				result.append(f'- {channel.mention} was not in the learn channels list.')
+
+		await self.bot.db.close_connection(conn, cur)
 
 		await ctx.send(embed=discord.Embed(title='Action completed with the following results:', description='\n'.join(result), color=0x00FF00))
 
@@ -146,7 +168,10 @@ class Configs(commands.Cog):
 			if not msg.content.lower() == f'{prefix}yes':
 				await ctx.send('Action canceled!')
 			else:
-				await self.bot.db.reset_guild_data(ctx.guild.id)
+				conn, cur = await self.bot.db.create_connection(ctx.guild.id)
+				await self.bot.db.reset_guild_data(conn, cur)
+				await self.bot.db.close_connection(conn, cur)
+
 				await ctx.send('Done!')
 
 def setup(bot):
