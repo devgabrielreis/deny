@@ -36,9 +36,13 @@ class Info(commands.Cog):
 		embed.set_author(name='Info', icon_url=self.bot.user.avatar_url)
 		embed.set_thumbnail(url=ctx.guild.icon_url)
 
-		talk_channels = await self.bot.db.get_talk_channels(ctx.guild.id)
-		learn_channels = await self.bot.db.get_learn_channels(ctx.guild.id)
-		saved_messages = await self.bot.db.get_guild_saved_messages(ctx.guild.id)
+		conn, cur = await self.bot.db.create_connection(ctx.guild.id)
+
+		talk_channels = await self.bot.db.get_talk_channels(cur)
+		learn_channels = await self.bot.db.get_learn_channels(cur)
+		saved_messages = await self.bot.db.get_guild_saved_messages(cur)
+
+		await self.bot.db.close_connection(conn, cur)
 
 		tc = []
 		lc = []
