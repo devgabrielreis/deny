@@ -1,5 +1,5 @@
 import aiosqlite
-from sqlite3 import Binary
+from sqlite3 import Binary, OperationalError
 import json
 import os
 import random
@@ -9,9 +9,28 @@ class DatabaseManager:
 		self.dirpath = dirpath
 		self.max_messages = max_messages
 
-	async def add_guild(self, guild_id):
-		conn, cur = await self._create_connection(guild_id)
+	async def create_connection(self, guild_id):
+		guild_in = self.is_guild_in(guild_id)
 
+		while True:
+			try:
+				conn = await aiosqlite.connect(f'{self.dirpath}/{guild_id}.db')
+				break
+			except OperationalError:
+				await asyncio.sleep(0)
+
+		cur = await conn.cursor()
+
+		if not guild_in:
+			await self.add_guild(conn, cur)
+
+		return conn, cur
+
+	async def close_connection(self, conn, cur):
+		await cur.close()
+		await conn.close()
+
+	async def add_guild(self, conn, cur):
 		await cur.execute('CREATE TABLE talkchannels (channel INT, probability INT)')
 		await cur.execute('CREATE TABLE learnchannels (channel INT)')
 		await cur.execute('CREATE TABLE messages (id INTEGER PRIMARY KEY, message TEXT)')
@@ -20,27 +39,20 @@ class DatabaseManager:
 			('__START__', 0, self._dict_to_blob(dict())))
 
 		await conn.commit()
-		await self._close_connection(conn, cur)
 
 	def is_guild_in(self, guild_id):
 		return os.path.isfile(f'{self.dirpath}/{guild_id}.db')
 
-	async def get_guild_saved_messages(self, guild_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def get_guild_saved_messages(self, cur):
 		await cur.execute('SELECT total FROM markovchain WHERE state = ? LIMIT 1',
 			('__START__', ))
 
 		total_saved_messages = await cur.fetchone()
 		total_saved_messages = total_saved_messages[0]
 
-		await self._close_connection(conn, cur)
-
 		return total_saved_messages
 
-	async def reset_guild_data(self, guild_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def reset_guild_data(self, conn, cur):
 		for table in ['talkchannels', 'learnchannels', 'messages', 'markovchain']:
 			await cur.execute(f'DROP TABLE {table}')
 
@@ -52,14 +64,11 @@ class DatabaseManager:
 			('__START__', 0, self._dict_to_blob(dict())))
 
 		await conn.commit()
-		await self._close_connection(conn, cur)
 
 	def remove_guild(self, guild_id):
 		os.remove(f'{self.dirpath}/{guild_id}.db')
 
-	async def add_talk_channel(self, guild_id, channel_id, probability):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def add_talk_channel(self, conn, cur, channel_id, probability):
 		await cur.execute('SELECT channel FROM talkchannels')
 		talk_channels = [row[0] async for row in cur]
 
@@ -67,158 +76,117 @@ class DatabaseManager:
 			await cur.execute('UPDATE talkchannels SET probability = ? WHERE channel = ?',
 				(probability, channel_id))
 			await conn.commit()
-			await self._close_connection(conn, cur)
 			return 2
 
 		if len(talk_channels) >= 5:
-			await self._close_connection(conn, cur)
 			return 3
 
 		await cur.execute('INSERT INTO talkchannels (channel, probability) VALUES (?, ?)',
 			(channel_id, probability))
 		await conn.commit()
-		await self._close_connection(conn, cur)
 		return 1
 
-	async def add_learn_channel(self, guild_id, channel_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def add_learn_channel(self, conn, cur, channel_id):
 		await cur.execute('SELECT channel FROM learnchannels')
 		talk_channels = [row[0] async for row in cur]
 
 		if channel_id in talk_channels:
-			await self._close_connection(conn, cur)
 			return 2
 
 		if len(talk_channels) >= 10:
-			await self._close_connection(conn, cur)
 			return 3
 
 		await cur.execute('INSERT INTO learnchannels (channel) VALUES (?)',
 			(channel_id, ))
 		await conn.commit()
-		await self._close_connection(conn, cur)
 		return 1
 
-	async def is_talk_channel(self, guild_id, channel_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def is_talk_channel(self, cur, channel_id):
 		await cur.execute('SELECT COUNT(channel) FROM talkchannels WHERE channel = ? LIMIT 1',
 			(channel_id, ))
+
 		check = await cur.fetchone()
 		check = check[0]
 
-		await self._close_connection(conn, cur)
-
 		return check == 1
 
-	async def is_learn_channel(self, guild_id, channel_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def is_learn_channel(self, cur, channel_id):
 		await cur.execute('SELECT COUNT(channel) FROM learnchannels WHERE channel = ? LIMIT 1',
 			(channel_id, ))
+
 		check = await cur.fetchone()
 		check = check[0]
 
-		await self._close_connection(conn, cur)
-
 		return check == 1
 
-	async def get_talk_channels(self, guild_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def get_talk_channels(self, cur):
 		await cur.execute('SELECT channel, probability FROM talkchannels')
 
 		talk_channels = {}
 		async for row in cur:
 			talk_channels[row[0]] = row[1]
 
-		await self._close_connection(conn, cur)
-
 		return talk_channels
 
-	async def get_learn_channels(self, guild_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def get_learn_channels(self, cur):
 		await cur.execute('SELECT channel FROM learnchannels')
+
 		talk_channels = [row[0] async for row in cur]
 
-		await self._close_connection(conn, cur)
-
 		return talk_channels
 
-	async def remove_talk_channel(self, guild_id, channel_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def remove_talk_channel(self, conn, cur, channel_id):
 		await cur.execute('SELECT COUNT(channel) FROM talkchannels WHERE channel = ? LIMIT 1',
 			(channel_id, ))
+
 		check = await cur.fetchone()
 		check = check[0]
 
 		if check == 0:
-			await self._close_connection(conn, cur)
 			return 2
 
 		await cur.execute('DELETE FROM talkchannels WHERE channel = ?',
 			(channel_id, ))
+
 		await conn.commit()
 
-		await self._close_connection(conn, cur)
 		return 1
 
-	async def remove_learn_channel(self, guild_id, channel_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def remove_learn_channel(self, conn, cur, channel_id):
 		await cur.execute('SELECT COUNT(channel) FROM learnchannels WHERE channel = ? LIMIT 1',
 			(channel_id, ))
 		check = await cur.fetchone()
 		check = check[0]
 
 		if check == 0:
-			await self._close_connection(conn, cur)
 			return 2
 
 		await cur.execute('DELETE FROM learnchannels WHERE channel = ?',
 			(channel_id, ))
 		await conn.commit()
 
-		await self._close_connection(conn, cur)
 		return 1
 
-	async def calc_probability(self, guild_id, channel_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def calc_probability(self, cur, channel_id):
 		await cur.execute('SELECT probability FROM talkchannels WHERE channel = ?',
 			(channel_id, ))
 
 		probability = await cur.fetchone()
 		probability = probability[0]
 
-		await self._close_connection(conn, cur)
-
 		return random.randint(1, 100) <= probability
 
-	async def remove_all_talk_channels(self, guild_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def remove_all_talk_channels(self, conn, cur):
 		await cur.execute('DELETE FROM talkchannels')
 		await conn.commit()
 
-		await self._close_connection(conn, cur)
-
-	async def remove_all_learn_channels(self, guild_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def remove_all_learn_channels(self, conn, cur):
 		await cur.execute('DELETE FROM learnchannels')
 		await conn.commit()
 
-		await self._close_connection(conn, cur)
-
-	async def update_chain(self, guild_id, content):
+	async def update_chain(self, conn, cur, content):
 		if not self._is_content_clean(content):
 			return
-
-		conn, cur = await self._create_connection(guild_id)
 
 		await cur.execute('INSERT INTO messages (message) VALUES (?)',
 			(content, ))
@@ -264,15 +232,11 @@ class DatabaseManager:
 
 		await conn.commit()
 
-		await self._close_connection(conn, cur)
-
 		if total_saved_messages > self.max_messages:
-			await self._remove_message(guild_id)
+			await self._remove_message(conn, cur)
 
-	async def generate(self, guild_id):
+	async def generate(self, cur):
 		sentence = []
-
-		conn, cur = await self._create_connection(guild_id)
 
 		await cur.execute('SELECT nodes FROM markovchain WHERE state = ? LIMIT 1',
 			('__START__', ))
@@ -293,13 +257,9 @@ class DatabaseManager:
 			sentence += [next_node]
 			state = f'{state.split()[1]} {next_node}'
 
-		await self._close_connection(conn, cur)
-
 		return ' '.join(sentence)
 
-	async def _remove_message(self, guild_id):
-		conn, cur = await self._create_connection(guild_id)
-
+	async def _remove_message(self, conn, cur):
 		await cur.execute('SELECT message, id FROM messages LIMIT 1')
 
 		row = await cur.fetchone()
@@ -348,8 +308,6 @@ class DatabaseManager:
 
 		await conn.commit()
 
-		await self._close_connection(conn, cur)
-
 	def _is_content_clean(self, content):
 		content = content.split()
 
@@ -369,12 +327,3 @@ class DatabaseManager:
 
 	def _blob_to_dict(self, blob):
 		return json.loads(blob.decode('utf-8'))
-
-	async def _create_connection(self, guild_id):
-		conn = await aiosqlite.connect(f'{self.dirpath}/{guild_id}.db')
-		cur = await conn.cursor()
-		return conn, cur
-
-	async def _close_connection(self, conn, cur):
-		await cur.close()
-		await conn.close()
