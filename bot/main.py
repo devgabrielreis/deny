@@ -9,7 +9,7 @@ class ChatBot(commands.Bot):
 		super().__init__(**kwargs)
 		self.remove_command('help')
 
-		self.version = '1.2.3'
+		self.version = '1.2.4'
 
 		if not os.path.isdir('./data'):
 			os.makedirs('./data')
@@ -31,8 +31,6 @@ class ChatBot(commands.Bot):
 	async def on_message(self, message):
 		if message.guild is None:
 			return
-		if not self.db.is_guild_in(message.guild.id):
-			await self.db.add_guild(message.guild.id)
 		await self.process_commands(message)
 
 bot_token = #Your token
