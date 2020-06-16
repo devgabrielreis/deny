@@ -1,5 +1,5 @@
 # markovchain-discord-chatbot
-A Discord chatbot that uses a Markov chain to generate random sentences.
+A Discord chatbot that uses a Markov chain to generate random messages.
 Made in Python.
 
 ## Built With
