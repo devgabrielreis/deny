@@ -9,7 +9,7 @@ class ChatBot(commands.Bot):
 		super().__init__(**kwargs)
 		self.remove_command('help')
 
-		self.version = '1.2.4'
+		self.version = '1.2.5'
 
 		if not os.path.isdir('./data'):
 			os.makedirs('./data')
@@ -35,6 +35,6 @@ class ChatBot(commands.Bot):
 
 bot_token = #Your token
 
-bot = ChatBot(command_prefix=';', reconnect=True)
+bot = ChatBot(command_prefix=';')
 
 bot.run(bot_token)

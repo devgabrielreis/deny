@@ -5,7 +5,7 @@ class Info(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
 
-		self.github_link = 'https://github.com/namateeri/markovchain-discord-chatbot'
+		self.github_link = 'https://github.com/libras-git/markovchain-discord-chatbot'
 
 		prefix = self.bot.command_prefix
 

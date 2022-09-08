@@ -88,12 +88,12 @@ class DatabaseManager:
 
 	async def add_learn_channel(self, conn, cur, channel_id):
 		await cur.execute('SELECT channel FROM learnchannels')
-		talk_channels = [row[0] async for row in cur]
+		learn_channels = [row[0] async for row in cur]
 
-		if channel_id in talk_channels:
+		if channel_id in learn_channels:
 			return 2
 
-		if len(talk_channels) >= 10:
+		if len(learn_channels) >= 10:
 			return 3
 
 		await cur.execute('INSERT INTO learnchannels (channel) VALUES (?)',
@@ -131,9 +131,9 @@ class DatabaseManager:
 	async def get_learn_channels(self, cur):
 		await cur.execute('SELECT channel FROM learnchannels')
 
-		talk_channels = [row[0] async for row in cur]
+		learn_channels = [row[0] async for row in cur]
 
-		return talk_channels
+		return learn_channels
 
 	async def remove_talk_channel(self, conn, cur, channel_id):
 		await cur.execute('SELECT COUNT(channel) FROM talkchannels WHERE channel = ? LIMIT 1',
