@@ -5,8 +5,6 @@ class Info(commands.Cog):
 	def __init__(self, bot):
 		self.bot = bot
 
-		self.github_link = 'https://github.com/libras-git/markovchain-discord-chatbot'
-
 		prefix = self.bot.command_prefix
 
 		self.help_messages = {
@@ -61,7 +59,7 @@ class Info(commands.Cog):
 			saved_messages = f'{saved_messages}\n*The bot need at least 50 saved messages to start sending messages.*'
 
 		embed.add_field(name='Guild Info', value=f'Saved messages for this guild: {saved_messages}\n\nTalk chats and the respective chance to the bot send message on them:\n{tc}\n\nLearn chats:\n{lc}')
-		embed.add_field(name='Bot Info', value=f'Version: {self.bot.version}\nTotal guilds: {len(self.bot.guilds)}\n\nThis bot is an open source project, you can check its source code on [GitHub]({self.github_link})')
+		embed.add_field(name='Bot Info', value=f'Version: {self.bot.version}\nTotal guilds: {len(self.bot.guilds)}\n')
 
 		await ctx.send(embed=embed)
 
