@@ -1,4 +1,4 @@
-# markovchain-discord-chatbot
+# deny
 A Discord chatbot that uses a Markov chain to generate random messages.
 
 ## Note
